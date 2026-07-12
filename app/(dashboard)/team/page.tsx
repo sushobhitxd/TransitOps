@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Trash } from "lucide-react";
 
 type User = {
   id: string;
@@ -63,14 +64,34 @@ export default function TeamManagementPage() {
       }
 
       toast.success("Role updated successfully!");
-      // Optimistically update the UI
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
       );
     } catch (error: any) {
       toast.error(error.message || "Failed to update role");
-      // Refetch to ensure state is in sync with server
       fetchUsers();
+    }
+  }
+
+  async function handleDelete(userId: string) {
+    if (!window.confirm("Delete this team member? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete user");
+      }
+
+      toast.success("User deleted successfully!");
+      setUsers((prev) => prev.filter((user) => user.id !== userId));
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete user");
     }
   }
 
@@ -96,6 +117,7 @@ export default function TeamManagementPage() {
                 <th className="px-6 py-4 font-medium">Email</th>
                 <th className="px-6 py-4 font-medium">Joined</th>
                 <th className="px-6 py-4 font-medium text-right">Role</th>
+                <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -118,6 +140,15 @@ export default function TeamManagementPage() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center h-9 px-3 rounded-lg text-sm font-semibold text-destructive border border-destructive/20 bg-destructive/10 hover:bg-destructive/20 transition"
+                      onClick={() => handleDelete(user.id)}
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Plus, Search, Droplet, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transiti
 interface FuelLog {
   id: string;
   liters: number;
-  cost: number;
+  totalCost: number;
   date: string;
   vehicle: { name: string; regNumber: string };
   trip?: { source: string; destination: string } | null;
@@ -33,9 +34,37 @@ export default function FuelPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   const fetchLogs = async () => {
-    const res = await fetch("/api/fuel");
-    setLogs(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch("/api/fuel", { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Failed to load fuel logs:", err);
+        setLogs([]);
+        if (res.status === 401) {
+          toast.error("Unauthorized — please sign in to view fuel logs");
+        } else {
+          toast.error((err && (err.error || err.message)) || "Failed to load fuel logs");
+        }
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.error("Unexpected fuel API response:", data);
+        setLogs([]);
+        setLoading(false);
+        return;
+      }
+
+      setLogs(data);
+    } catch (e) {
+      console.error("Error fetching fuel logs:", e);
+      setLogs([]);
+      toast.error("Could not fetch fuel logs");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchLogs(); }, []);
@@ -136,7 +165,7 @@ export default function FuelPage() {
                     <span className="font-bold text-white/90">{formatNumber(l.liters, 2)} L</span>
                   </TableCell>
                   <TableCell>
-                    <span className="font-bold text-primary">{formatCurrency(l.cost)}</span>
+                    <span className="font-bold text-primary">{formatCurrency(l.totalCost)}</span>
                   </TableCell>
                   <TableCell className="text-right">
                     <span className="text-[13px] font-medium tracking-wide text-muted-foreground">
