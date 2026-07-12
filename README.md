@@ -1,6 +1,5 @@
 # TransitOps — Smart Transport Operations Platform
-
-> **Hackathon Duration:** 8 Hours  
+ 
 > **Stack:** Next.js 15 (App Router) · TypeScript · PostgreSQL · Prisma · Tailwind CSS · shadcn/ui · Auth.js · Recharts
 
 ---
