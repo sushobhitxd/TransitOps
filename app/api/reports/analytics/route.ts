@@ -6,95 +6,90 @@ export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Fetch all vehicles with their related costs
   const vehicles = await prisma.vehicle.findMany({
     include: {
       trips: {
         where: { status: "COMPLETED" },
-        select: {
-          actualDistance: true,
-          fuelConsumed: true,
-          revenue: true,
-        },
+        select: { actualDistance: true, fuelConsumed: true, revenue: true },
       },
-      maintenanceLogs: {
-        select: { cost: true, status: true },
-      },
-      fuelLogs: {
-        select: { totalCost: true, liters: true },
-      },
-      expenses: {
-        select: { amount: true, category: true },
-      },
+      maintenanceLogs: { select: { cost: true, status: true } },
+      fuelLogs: { select: { totalCost: true, liters: true } },
+      expenses: { select: { amount: true, category: true } },
     },
   });
 
-  const analytics = vehicles.map((v) => {
-    const totalDistance = v.trips.reduce(
-      (sum, t) => sum + (t.actualDistance ?? 0),
-      0
-    );
-    const totalFuel = v.trips.reduce(
-      (sum, t) => sum + (t.fuelConsumed ?? 0),
-      0
-    ) + v.fuelLogs.reduce((sum, f) => sum + f.liters, 0);
+  let totalCost = 0;
+  let revenue = 0;
+  let totalDistance = 0;
+  let totalFuel = 0;
+  let totalAcquisition = 0;
+  
+  const categoryMap: Record<string, number> = {};
+  let onTrip = 0;
 
-    const fuelCost = v.fuelLogs.reduce((sum, f) => sum + f.totalCost, 0);
-    const maintenanceCost = v.maintenanceLogs.reduce(
-      (sum, m) => sum + m.cost,
-      0
-    );
-    const otherExpenses = v.expenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalCost = fuelCost + maintenanceCost + otherExpenses;
+  vehicles.forEach((v) => {
+    if (v.status === "ON_TRIP") onTrip++;
+    totalAcquisition += v.acquisitionCost || 0;
 
-    const totalRevenue = v.trips.reduce(
-      (sum, t) => sum + (t.revenue ?? 0),
-      0
-    );
+    const vRevenue = v.trips.reduce((s, t) => s + (t.revenue || 0), 0);
+    revenue += vRevenue;
 
-    const roi =
-      v.acquisitionCost > 0
-        ? (totalRevenue - (maintenanceCost + fuelCost)) / v.acquisitionCost
-        : 0;
+    totalDistance += v.trips.reduce((s, t) => s + (t.actualDistance || 0), 0);
+    totalFuel += v.fuelLogs.reduce((s, f) => s + f.liters, 0) + v.trips.reduce((s, t) => s + (t.fuelConsumed || 0), 0);
 
-    const fuelEfficiency =
-      totalFuel > 0 ? totalDistance / totalFuel : 0;
+    const fCost = v.fuelLogs.reduce((s, f) => s + f.totalCost, 0);
+    const mCost = v.maintenanceLogs.reduce((s, m) => s + m.cost, 0);
+    const eCost = v.expenses.reduce((s, e) => s + e.amount, 0);
+    totalCost += fCost + mCost + eCost;
 
-    const tripsCompleted = v.trips.length;
-
-    return {
-      id: v.id,
-      name: v.name,
-      regNumber: v.regNumber,
-      type: v.type,
-      status: v.status,
-      acquisitionCost: v.acquisitionCost,
-      totalDistance,
-      totalFuel,
-      fuelEfficiency: parseFloat(fuelEfficiency.toFixed(2)),
-      fuelCost: parseFloat(fuelCost.toFixed(2)),
-      maintenanceCost: parseFloat(maintenanceCost.toFixed(2)),
-      otherExpenses: parseFloat(otherExpenses.toFixed(2)),
-      totalCost: parseFloat(totalCost.toFixed(2)),
-      totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-      roi: parseFloat((roi * 100).toFixed(2)),
-      tripsCompleted,
-    };
+    v.expenses.forEach(e => {
+      categoryMap[e.category] = (categoryMap[e.category] || 0) + e.amount;
+    });
   });
 
-  // Monthly trip data for charts
-  const monthlyTrips = await prisma.$queryRaw<
-    Array<{ month: string; count: number; revenue: number }>
-  >`
-    SELECT 
-      TO_CHAR(DATE_TRUNC('month', "createdAt"), 'Mon') as month,
-      COUNT(*) as count,
-      COALESCE(SUM(revenue), 0) as revenue
-    FROM trips
-    WHERE status = 'COMPLETED'
-      AND "createdAt" >= NOW() - INTERVAL '6 months'
-    GROUP BY DATE_TRUNC('month', "createdAt")
-    ORDER BY DATE_TRUNC('month', "createdAt")
+  const fleetUtilization = vehicles.length > 0 ? (onTrip / vehicles.length) * 100 : 0;
+  const fuelEfficiency = totalFuel > 0 ? totalDistance / totalFuel : 0;
+  const roi = totalAcquisition > 0 ? ((revenue - totalCost) / totalAcquisition) * 100 : 0;
+
+  const expensesByCategory = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
+
+  // For monthly costs, a raw query is easiest
+  const monthlyFuel = await prisma.$queryRaw<Array<{ month: string; amount: number }>>`
+    SELECT TO_CHAR(DATE_TRUNC('month', "date"), 'Mon') as month, COALESCE(SUM("totalCost"), 0) as amount
+    FROM fuel_logs WHERE "date" >= NOW() - INTERVAL '6 months' GROUP BY DATE_TRUNC('month', "date")
+  `;
+  const monthlyMaint = await prisma.$queryRaw<Array<{ month: string; amount: number }>>`
+    SELECT TO_CHAR(DATE_TRUNC('month', "startDate"), 'Mon') as month, COALESCE(SUM(cost), 0) as amount
+    FROM maintenance_logs WHERE "startDate" >= NOW() - INTERVAL '6 months' GROUP BY DATE_TRUNC('month', "startDate")
+  `;
+  const monthlyExp = await prisma.$queryRaw<Array<{ month: string; amount: number }>>`
+    SELECT TO_CHAR(DATE_TRUNC('month', "date"), 'Mon') as month, COALESCE(SUM(amount), 0) as amount
+    FROM expenses WHERE "date" >= NOW() - INTERVAL '6 months' GROUP BY DATE_TRUNC('month', "date")
   `;
 
-  return NextResponse.json({ vehicles: analytics, monthlyTrips });
+  // Merge monthly
+  const monthMap: Record<string, { month: string; fuel: number; maintenance: number; other: number }> = {};
+  
+  // Initialize last 6 months so it has a baseline
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const m = d.toLocaleString('en-US', { month: 'short' });
+    monthMap[m] = { month: m, fuel: 0, maintenance: 0, other: 0 };
+  }
+
+  monthlyFuel.forEach(m => { if (monthMap[m.month]) monthMap[m.month].fuel += Number(m.amount); });
+  monthlyMaint.forEach(m => { if (monthMap[m.month]) monthMap[m.month].maintenance += Number(m.amount); });
+  monthlyExp.forEach(m => { if (monthMap[m.month]) monthMap[m.month].other += Number(m.amount); });
+
+  return NextResponse.json({
+    fleetUtilization: Math.round(fleetUtilization),
+    fuelEfficiency: parseFloat(fuelEfficiency.toFixed(2)),
+    totalCost,
+    revenue,
+    roi: parseFloat(roi.toFixed(2)),
+    expensesByCategory,
+    monthlyCosts: Object.values(monthMap)
+  });
 }

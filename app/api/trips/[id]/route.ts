@@ -40,10 +40,26 @@ export async function PATCH(
   const trip = await prisma.trip.findUnique({ where: { id } });
   if (!trip) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const updated = await prisma.trip.update({
-    where: { id },
-    data: body,
-  });
+  let vehicleStatus;
+  let driverStatus;
+  if (body.status === "DISPATCHED") {
+    vehicleStatus = "ON_TRIP";
+    driverStatus = "ON_TRIP";
+  } else if (body.status === "CANCELLED") {
+    vehicleStatus = "AVAILABLE";
+    driverStatus = "AVAILABLE";
+  }
+
+  const [updated] = await prisma.$transaction([
+    prisma.trip.update({
+      where: { id },
+      data: body,
+    }),
+    ...(vehicleStatus ? [
+      prisma.vehicle.update({ where: { id: trip.vehicleId }, data: { status: vehicleStatus } }),
+      prisma.driver.update({ where: { id: trip.driverId }, data: { status: driverStatus } }),
+    ] : []),
+  ]);
 
   return NextResponse.json(updated);
 }

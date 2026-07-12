@@ -20,7 +20,7 @@ const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transiti
 interface FuelLog {
   id: string;
   liters: number;
-  cost: number;
+  totalCost: number;
   date: string;
   vehicle: { name: string; regNumber: string };
   trip?: { source: string; destination: string } | null;
@@ -136,7 +136,7 @@ export default function FuelPage() {
                     <span className="font-bold text-white/90">{formatNumber(l.liters, 2)} L</span>
                   </TableCell>
                   <TableCell>
-                    <span className="font-bold text-primary">{formatCurrency(l.cost)}</span>
+                    <span className="font-bold text-primary">{formatCurrency(l.totalCost)}</span>
                   </TableCell>
                   <TableCell className="text-right">
                     <span className="text-[13px] font-medium tracking-wide text-muted-foreground">

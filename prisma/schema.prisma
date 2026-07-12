@@ -47,7 +47,9 @@ enum TripStatus {
 }
 
 enum MaintenanceStatus {
+  SCHEDULED
   ACTIVE
+  COMPLETED
   CLOSED
 }
 
