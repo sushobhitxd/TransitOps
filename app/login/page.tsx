@@ -188,6 +188,7 @@ export default function LoginPage() {
             <p className="text-xs font-medium mb-2" style={{ color: "hsl(239 84% 80%)" }}>Demo Accounts</p>
             <div className="space-y-1">
               {[
+                { email: "admin@demo.com", role: "Admin" },
                 { email: "fleet@demo.com", role: "Fleet Manager" },
                 { email: "dispatch@demo.com", role: "Dispatcher" },
                 { email: "safety@demo.com", role: "Safety Officer" },

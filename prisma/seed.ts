@@ -11,6 +11,11 @@ async function main() {
   // Create demo users
   const users = await Promise.all([
     prisma.user.upsert({
+      where: { email: "admin@demo.com" },
+      update: {},
+      create: { email: "admin@demo.com", password: hashedPassword, name: "System Admin", role: "ADMIN" },
+    }),
+    prisma.user.upsert({
       where: { email: "fleet@demo.com" },
       update: {},
       create: { email: "fleet@demo.com", password: hashedPassword, name: "Fleet Manager", role: "FLEET_MANAGER" },
@@ -240,7 +245,7 @@ async function main() {
 
   console.log(`✅ Created expenses`);
   console.log("\n🎉 Seed complete! Login with any of these accounts:");
-  console.log("   fleet@demo.com / dispatch@demo.com / safety@demo.com / finance@demo.com");
+  console.log("   admin@demo.com / fleet@demo.com / dispatch@demo.com / safety@demo.com / finance@demo.com");
   console.log("   Password: demo1234");
 }
 

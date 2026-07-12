@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Truck, Users, Navigation, Wrench,
-  Fuel, Receipt, BarChart3, LogOut, ChevronRight, Menu, X, Zap,
+  Fuel, Receipt, BarChart3, LogOut, ChevronRight, Menu, X, Zap, ShieldCheck
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ const navItems = [
   { href: "/fuel", icon: Fuel, label: "Fuel Logs" },
   { href: "/expenses", icon: Receipt, label: "Expenses" },
   { href: "/reports", icon: BarChart3, label: "Reports" },
+  { href: "/team", icon: ShieldCheck, label: "Team Management", roles: ["ADMIN"] },
 ];
 
 const roleLabels: Record<string, string> = {
@@ -70,6 +71,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {navItems.map((item) => {
+            if (item.roles && (!session?.user?.role || !item.roles.includes(session.user.role as string))) {
+              return null;
+            }
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <Link
