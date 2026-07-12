@@ -15,9 +15,11 @@ import { formatNumber, formatDate } from "@/lib/utils";
 import { TripForm } from "@/components/trips/trip-form";
 import { CompleteTripDialog } from "@/components/trips/complete-trip-dialog";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
-const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] } } };
+const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] as any } } };
 
 interface Trip {
   id: string;
@@ -192,7 +194,14 @@ export default function TripsPage() {
         </Table>
       </motion.div>
 
-      {actionData?.type === "COMPLETE" && <CompleteTripDialog tripId={actionData.id} open onOpenChange={(o) => { if (!o) setActionData(null); }} onSuccess={() => { setActionData(null); fetchTrips(); }} />}
+      {actionData?.type === "COMPLETE" && (
+        <CompleteTripDialog 
+          trip={trips.find(t => t.id === actionData.id)!} 
+          open 
+          onClose={() => setActionData(null)} 
+          onSuccess={() => { setActionData(null); fetchTrips(); }} 
+        />
+      )}
     </motion.div>
   );
 }

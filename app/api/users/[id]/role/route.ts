@@ -5,7 +5,7 @@ import { Role } from "@prisma/client";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   
@@ -14,9 +14,7 @@ export async function PATCH(
   }
 
   try {
-    // Await params in nextjs 15+ (App Router) just in case, or destructure from sync params if Next 14. 
-    // The safest way across nextjs 13/14/15 is just using params.id
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
     const { role } = body;
 
