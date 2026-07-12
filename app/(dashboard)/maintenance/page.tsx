@@ -1,192 +1,178 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { Plus, Search, Wrench, CheckCircle2 } from "lucide-react";
+import { Plus, Wrench, Settings, CheckCircle2, Clock, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate, formatCurrency } from "@/lib/utils";
 import { MaintenanceForm } from "@/components/maintenance/maintenance-form";
-import { CloseMaintenanceDialog } from "@/components/maintenance/close-maintenance-dialog";
+import { formatDate } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
+const item = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.2, 0.8, 0.2, 1] } } };
 
 interface MaintenanceLog {
   id: string;
-  type: string;
   description: string;
+  date: string;
   cost: number;
-  status: string;
-  startDate: string;
-  endDate?: string;
-  technicianName?: string;
-  vehicle: { id: string; name: string; regNumber: string };
+  status: "SCHEDULED" | "ACTIVE" | "COMPLETED";
+  vehicle: { name: string; regNumber: string };
 }
+
+const statusConfig = {
+  SCHEDULED: { title: "Scheduled", icon: Clock, color: "var(--muted-foreground)" },
+  ACTIVE: { title: "In Shop", icon: Settings, color: "var(--sl-orange)" },
+  COMPLETED: { title: "Completed", icon: CheckCircle2, color: "var(--status-available)" },
+};
 
 export default function MaintenancePage() {
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [closeLog, setCloseLog] = useState<MaintenanceLog | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchLogs = async () => {
     const res = await fetch("/api/maintenance");
-    const data = await res.json();
-    setLogs(data);
+    setLogs(await res.json());
     setLoading(false);
   };
 
   useEffect(() => { fetchLogs(); }, []);
 
-  const filtered = logs.filter((l) =>
-    l.vehicle.name.toLowerCase().includes(search.toLowerCase()) ||
-    l.type.toLowerCase().includes(search.toLowerCase())
-  );
+  const updateStatus = async (id: string, newStatus: string) => {
+    setActionLoading(id);
+    try {
+      const res = await fetch(`/api/maintenance/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        toast.success(`Maintenance marked as ${newStatus}`);
+        fetchLogs();
+      } else {
+        toast.error("Failed to update status");
+      }
+    } catch {
+      toast.error("An error occurred");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
-  const active = filtered.filter((l) => l.status === "ACTIVE");
-  const closed = filtered.filter((l) => l.status === "CLOSED");
+  const columns = ["SCHEDULED", "ACTIVE", "COMPLETED"] as const;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div variants={container} initial="hidden" animate="show" className="p-6 lg:p-8 h-[calc(100vh-5rem)] flex flex-col">
+      <motion.div variants={item} className="flex items-center justify-between mb-8 flex-shrink-0">
         <div>
-          <h2 className="text-lg font-semibold">Maintenance Logs</h2>
-          <p className="text-xs mt-0.5" style={{ color: "hsl(215 20% 55%)" }}>
-            {active.length} active · {closed.length} closed
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Maintenance Board</h2>
+          <p className="text-sm text-muted-foreground">
+            Track vehicle repairs, routine servicing, and fleet health visually.
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button size="sm" className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Log Maintenance
+          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap h-11 px-6 rounded-xl shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Plus className="w-5 h-5 mr-2" /> Log Maintenance
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create Maintenance Record</DialogTitle>
-            </DialogHeader>
+          <DialogContent className="max-w-lg bg-card border-white/10 p-8 rounded-2xl shadow-2xl">
+            <DialogHeader className="mb-6"><DialogTitle className="text-2xl font-bold tracking-tight">Schedule Service</DialogTitle></DialogHeader>
             <MaintenanceForm onSuccess={() => { setCreateOpen(false); fetchLogs(); }} />
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(215 20% 55%)" }} />
-        <Input placeholder="Search maintenance logs..." className="pl-9 h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <span className="text-sm font-medium tracking-widest uppercase text-muted-foreground">Loading Board...</span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 overflow-x-auto pb-4">
+          {columns.map((col) => {
+            const columnLogs = logs.filter((l) => l.status === col);
+            const conf = statusConfig[col];
+            return (
+              <div key={col} className="flex-1 min-w-[320px] flex flex-col bg-white/[0.02] rounded-[24px] border border-white/5 p-4 relative overflow-hidden">
+                {/* Column Header */}
+                <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5 px-2">
+                  <div className="flex items-center gap-2">
+                    <conf.icon className="w-5 h-5" style={{ color: `hsl(${conf.color})` }} />
+                    <h3 className="font-bold text-[15px] tracking-wide text-white">{conf.title}</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-white/5 text-white">
+                    {columnLogs.length}
+                  </span>
+                </div>
 
-      {/* Active */}
-      <div>
-        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-          <Wrench className="w-4 h-4 text-amber-400" />
-          Active Maintenance ({active.length})
-        </h3>
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
-          <Table className="data-table">
-            <TableHeader>
-              <TableRow style={{ background: "hsl(var(--secondary))" }}>
-                <TableHead>Vehicle</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Technician</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>Cost</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8" style={{ color: "hsl(215 20% 50%)" }}>Loading...</TableCell></TableRow>
-              ) : active.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
-                    <CheckCircle2 className="w-7 h-7 mx-auto mb-2 text-green-500" />
-                    <p className="text-sm" style={{ color: "hsl(215 20% 50%)" }}>No active maintenance</p>
-                  </TableCell>
-                </TableRow>
-              ) : active.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium text-sm">{log.vehicle.name}</div>
-                      <div className="text-xs" style={{ color: "hsl(215 20% 55%)" }}>{log.vehicle.regNumber}</div>
+                {/* Cards Container */}
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                  {columnLogs.length === 0 ? (
+                    <div className="h-32 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-xl">
+                      <p className="text-sm font-medium text-muted-foreground">No tasks</p>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{log.type}</TableCell>
-                  <TableCell className="text-sm max-w-48 truncate">{log.description}</TableCell>
-                  <TableCell className="text-sm">{log.technicianName ?? "—"}</TableCell>
-                  <TableCell className="text-sm">{formatDate(log.startDate)}</TableCell>
-                  <TableCell className="text-sm">{formatCurrency(log.cost)}</TableCell>
-                  <TableCell><StatusBadge status={log.status} /></TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="outline" className="h-7 text-xs"
-                      onClick={() => setCloseLog(log)}>
-                      Close
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  ) : (
+                    columnLogs.map((log) => (
+                      <motion.div key={log.id} variants={item} className="p-4 rounded-xl bg-card border border-white/10 hover:border-white/20 transition-all group">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="text-sm font-bold text-white mb-0.5">{log.vehicle.name}</p>
+                            <p className="text-[11px] font-medium tracking-widest uppercase" style={{ color: `hsl(${conf.color})` }}>
+                              {log.vehicle.regNumber}
+                            </p>
+                          </div>
+                          <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                            <Wrench className="w-4 h-4 text-muted-foreground group-hover:text-white transition-colors" />
+                          </div>
+                        </div>
+                        
+                        <p className="text-[13px] text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
+                          {log.description}
+                        </p>
+                        
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                          <span className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground">
+                            {formatDate(log.date)}
+                          </span>
+                          
+                          {col === "SCHEDULED" && (
+                            <Button 
+                              size="sm" variant="ghost" 
+                              className="h-7 text-xs font-semibold hover:bg-white/10 hover:text-white px-2 gap-1.5"
+                              disabled={actionLoading === log.id}
+                              onClick={() => updateStatus(log.id, "ACTIVE")}
+                            >
+                              {actionLoading === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Start"}
+                              <ArrowRight className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {col === "ACTIVE" && (
+                            <Button 
+                              size="sm" variant="ghost" 
+                              className="h-7 text-xs font-semibold text-status-available hover:bg-status-available/20 hover:text-status-available px-2 gap-1.5"
+                              disabled={actionLoading === log.id}
+                              onClick={() => updateStatus(log.id, "COMPLETED")}
+                            >
+                              {actionLoading === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Complete"}
+                              <CheckCircle2 className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
-
-      {/* Closed */}
-      <div>
-        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-green-500" />
-          Closed Maintenance ({closed.length})
-        </h3>
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
-          <Table className="data-table">
-            <TableHeader>
-              <TableRow style={{ background: "hsl(var(--secondary))" }}>
-                <TableHead>Vehicle</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Final Cost</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {closed.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-6" style={{ color: "hsl(215 20% 50%)" }}>
-                    No closed maintenance records
-                  </TableCell>
-                </TableRow>
-              ) : closed.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <div className="font-medium text-sm">{log.vehicle.name}</div>
-                    <div className="text-xs" style={{ color: "hsl(215 20% 55%)" }}>{log.vehicle.regNumber}</div>
-                  </TableCell>
-                  <TableCell className="text-sm">{log.type}</TableCell>
-                  <TableCell className="text-sm">
-                    {formatDate(log.startDate)} → {formatDate(log.endDate)}
-                  </TableCell>
-                  <TableCell className="text-sm">{formatCurrency(log.cost)}</TableCell>
-                  <TableCell><StatusBadge status={log.status} /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {closeLog && (
-        <CloseMaintenanceDialog
-          log={closeLog}
-          open={!!closeLog}
-          onClose={() => setCloseLog(null)}
-          onSuccess={() => { setCloseLog(null); fetchLogs(); }}
-        />
       )}
-    </div>
+    </motion.div>
   );
 }

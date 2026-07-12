@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Search, Pencil, Trash2, Truck } from "lucide-react";
+import { Plus, Search, Truck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,37 +11,36 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatNumber, formatCurrency } from "@/lib/utils";
 import { VehicleForm } from "@/components/vehicles/vehicle-form";
+import { motion } from "framer-motion";
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } }
+};
+const item = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] } }
+};
 
 interface Vehicle {
   id: string;
-  regNumber: string;
   name: string;
+  regNumber: string;
   type: string;
   maxLoad: number;
   odometer: number;
   acquisitionCost: number;
   status: string;
-  region?: string;
-  _count?: { trips: number; maintenanceLogs: number };
 }
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const fetchVehicles = async () => {
     const res = await fetch("/api/vehicles");
@@ -50,180 +49,114 @@ export default function VehiclesPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchVehicles(); }, []);
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
 
-  const filtered = vehicles.filter((v) => {
-    const matchSearch = v.name.toLowerCase().includes(search.toLowerCase()) ||
-      v.regNumber.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "ALL" || v.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  const handleDelete = async (id: string) => {
-    const res = await fetch(`/api/vehicles/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Vehicle deleted");
-      fetchVehicles();
-    } else {
-      const err = await res.json();
-      toast.error(err.error ?? "Failed to delete");
-    }
-  };
-
-  const handleStatusChange = async (id: string, status: string) => {
-    const res = await fetch(`/api/vehicles/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (res.ok) {
-      toast.success("Status updated");
-      fetchVehicles();
-    } else {
-      toast.error("Failed to update status");
-    }
-  };
+  const filtered = vehicles.filter((v) =>
+    v.name.toLowerCase().includes(search.toLowerCase()) ||
+    v.regNumber.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <motion.div variants={container} initial="hidden" animate="show" className="p-6 lg:p-8 space-y-8">
+      <motion.div variants={item} className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Vehicle Registry</h2>
-          <p className="text-xs mt-0.5" style={{ color: "hsl(215 20% 55%)" }}>
-            {vehicles.length} total vehicles
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Fleet Registry</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage your transport assets, monitor status, and register new vehicles.
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditVehicle(null); }}>
-          <DialogTrigger render={<Button size="sm" className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Add Vehicle
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap h-11 px-6 rounded-xl shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Plus className="w-5 h-5 mr-2" /> Add Vehicle
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{editVehicle ? "Edit Vehicle" : "Register Vehicle"}</DialogTitle>
+          <DialogContent className="max-w-lg bg-card border-white/10 p-8 rounded-2xl shadow-2xl">
+            <DialogHeader className="mb-6">
+              <DialogTitle className="text-2xl font-bold tracking-tight">Register Vehicle</DialogTitle>
             </DialogHeader>
-            <VehicleForm
-              vehicle={editVehicle as any}
-              onSuccess={() => { setDialogOpen(false); setEditVehicle(null); fetchVehicles(); }}
-            />
+            <VehicleForm onSuccess={() => { setCreateOpen(false); fetchVehicles(); }} />
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
-      {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(215 20% 55%)" }} />
-          <Input
-            placeholder="Search by name or reg number..."
-            className="pl-9 h-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+      <motion.div variants={item} className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1 max-w-md group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors group-focus-within:text-white text-muted-foreground" />
+          <Input 
+            placeholder="Search by name or registration..." 
+            className="pl-11 h-12 rounded-xl bg-card/50 border-white/10 text-white placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:border-primary transition-all"
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "ALL")}>
-          <SelectTrigger className="w-40 h-9">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Status</SelectItem>
-            <SelectItem value="AVAILABLE">Available</SelectItem>
-            <SelectItem value="ON_TRIP">On Trip</SelectItem>
-            <SelectItem value="IN_SHOP">In Shop</SelectItem>
-            <SelectItem value="RETIRED">Retired</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      </motion.div>
 
-      {/* Table */}
-      <div className="rounded-xl border overflow-hidden"
-        style={{ borderColor: "hsl(var(--border))" }}>
+      <motion.div variants={item} className="premium-card overflow-hidden">
         <Table className="data-table">
           <TableHeader>
-            <TableRow style={{ background: "hsl(var(--secondary))" }}>
-              <TableHead>Vehicle</TableHead>
+            <TableRow className="border-white/5 hover:bg-transparent">
+              <TableHead className="w-[300px]">Vehicle</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Max Load</TableHead>
               <TableHead>Odometer</TableHead>
-              <TableHead>Acq. Cost</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Region</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Value</TableHead>
+              <TableHead className="text-right">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12" style={{ color: "hsl(215 20% 50%)" }}>
-                  Loading...
+              <TableRow className="border-none hover:bg-transparent">
+                <TableCell colSpan={6} className="text-center py-20 text-muted-foreground">
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <span className="text-sm font-medium tracking-widest uppercase">Loading Registry...</span>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
-                  <Truck className="w-8 h-8 mx-auto mb-2" style={{ color: "hsl(215 20% 40%)" }} />
-                  <p className="text-sm" style={{ color: "hsl(215 20% 50%)" }}>No vehicles found</p>
+              <TableRow className="border-none hover:bg-transparent">
+                <TableCell colSpan={6} className="text-center py-24">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-white/5 border border-white/10">
+                    <Truck className="w-7 h-7 text-muted-foreground" />
+                  </div>
+                  <p className="text-base font-semibold text-white">No vehicles found</p>
+                  <p className="text-sm mt-2 text-muted-foreground max-w-xs mx-auto">
+                    We couldn't find any vehicles matching your search. Try adjusting your filters.
+                  </p>
                 </TableCell>
               </TableRow>
-            ) : filtered.map((v) => (
-              <TableRow key={v.id}>
-                <TableCell>
-                  <div>
-                    <div className="font-medium text-sm">{v.name}</div>
-                    <div className="text-xs mt-0.5" style={{ color: "hsl(215 20% 55%)" }}>{v.regNumber}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-sm">{v.type}</TableCell>
-                <TableCell className="text-sm">{formatNumber(v.maxLoad, 0)} kg</TableCell>
-                <TableCell className="text-sm">{formatNumber(v.odometer, 0)} km</TableCell>
-                <TableCell className="text-sm">{formatCurrency(v.acquisitionCost)}</TableCell>
-                <TableCell>
-                  <Select value={v.status} onValueChange={(val) => handleStatusChange(v.id, val ?? v.status)}>
-                    <SelectTrigger className="h-auto p-0 border-0 bg-transparent w-auto">
-                      <StatusBadge status={v.status} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="AVAILABLE">Available</SelectItem>
-                      <SelectItem value="IN_SHOP">In Shop</SelectItem>
-                      <SelectItem value="RETIRED">Retired</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-sm">{v.region ?? "—"}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost" size="icon" className="w-7 h-7"
-                      onClick={() => { setEditVehicle(v); setDialogOpen(true); }}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger render={<Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" />}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Vehicle?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete <strong>{v.name}</strong> ({v.regNumber}). This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(v.id)} className="bg-destructive text-destructive-foreground">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+            ) : (
+              filtered.map((v) => (
+                <TableRow key={v.id} className="border-white/5 hover:bg-white/5 transition-colors">
+                  <TableCell>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                        <Truck className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-white text-[15px] truncate">{v.name}</p>
+                        <p className="text-xs font-medium tracking-wide text-muted-foreground mt-0.5">{v.regNumber}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-semibold tracking-wide px-2.5 py-1 rounded-md bg-white/5 text-white/90 border border-white/10">
+                      {v.type}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-semibold text-white/90">{formatNumber(v.maxLoad, 0)} kg</TableCell>
+                  <TableCell className="font-semibold text-white/90">{formatNumber(v.odometer, 0)} km</TableCell>
+                  <TableCell className="font-semibold text-white/90">{formatCurrency(v.acquisitionCost)}</TableCell>
+                  <TableCell className="text-right">
+                    <StatusBadge status={v.status} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Truck, Globe, Lock, Mail, Loader2 } from "lucide-react";
+import {
+  Globe, Lock, Mail, Loader2, Link as LinkIcon,
+  PackageSearch, Activity, ShieldCheck, Map
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { Logo } from "@/components/ui/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,109 +53,132 @@ export default function LoginPage() {
     }
   };
 
+  const stagger = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+  const fadeUp = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.2, 0.8, 0.2, 1] } }
+  };
+
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, hsl(239 84% 20%) 0%, hsl(222 47% 8%) 50%, hsl(271 70% 20%) 100%)"
-        }}
-      >
-        {/* Decorative circles */}
-        <div className="absolute top-1/4 -left-20 w-80 h-80 rounded-full opacity-10"
-          style={{ background: "hsl(239 84% 67%)", filter: "blur(60px)" }} />
-        <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full opacity-10"
-          style={{ background: "hsl(271 91% 65%)", filter: "blur(60px)" }} />
+    <div className="min-h-screen flex bg-background selection:bg-primary/30 selection:text-white">
+      {/* ─── LEFT PANEL: Brand Showcase ─── */}
+      <div className="hidden lg:flex lg:w-[55%] xl:w-[60%] relative overflow-hidden bg-card">
+        {/* Abstract Supply Link Branding Background */}
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full animate-pulse-ring"
+            style={{ background: "radial-gradient(circle, hsl(var(--sl-teal) / 0.15), transparent 70%)" }} />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full animate-float-delayed"
+            style={{ background: "radial-gradient(circle, hsl(var(--sl-orange) / 0.1), transparent 70%)" }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100vw] h-[200px] -rotate-45"
+            style={{ background: "linear-gradient(90deg, transparent, hsl(var(--sl-sand) / 0.03), transparent)" }} />
+        </div>
 
-        <div className="relative z-10 flex flex-col justify-center p-16">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center"
-              style={{ background: "hsl(239 84% 67%)" }}>
-              <Truck className="w-7 h-7 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-white">TransitOps</span>
-          </div>
+        {/* Content Wrapper */}
+        <div className="relative z-10 flex flex-col justify-between p-12 xl:p-20 w-full h-full">
+          
+          <motion.div initial="hidden" animate="show" variants={stagger} className="flex items-center gap-4">
+            <motion.div variants={fadeUp}>
+              <Logo className="scale-125 origin-left [&_span.text-foreground]:text-white" />
+            </motion.div>
+          </motion.div>
 
-          <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
-            Smart Transport<br />
-            <span style={{ color: "hsl(239 84% 80%)" }}>Operations Platform</span>
-          </h1>
-          <p className="text-lg mb-10" style={{ color: "hsl(215 20% 70%)" }}>
-            Manage your entire fleet lifecycle — from vehicle registration and driver management to dispatch, maintenance, and analytics.
-          </p>
+          <motion.div initial="hidden" animate="show" variants={stagger} className="my-auto py-12 max-w-2xl">
+            <motion.p variants={fadeUp} className="text-sm font-semibold tracking-[0.2em] uppercase mb-6"
+              style={{ color: "hsl(var(--sl-orange))" }}>
+              Global Solutions for Optimized Supply Chains
+            </motion.p>
+            <motion.h1 variants={fadeUp} className="text-5xl xl:text-7xl font-bold text-white leading-[1.1] mb-8 tracking-tight">
+              Smart Logistics<br />
+              <span style={{ color: "hsl(var(--sl-sand))" }}>for your business.</span>
+            </motion.h1>
+            <motion.p variants={fadeUp} className="text-lg leading-relaxed max-w-lg mb-12"
+              style={{ color: "hsl(var(--muted-foreground))" }}>
+              SupplyLink provides global logistics solutions, helping businesses worldwide optimize their supply chains with real-time tracking and seamless integration.
+            </motion.p>
 
-          <div className="space-y-4">
-            {[
-              { icon: "🚛", text: "Real-time fleet tracking & status" },
-              { icon: "👨‍✈️", text: "Driver compliance & license monitoring" },
-              { icon: "📊", text: "Operational cost & ROI analytics" },
-              { icon: "🔧", text: "Automated maintenance workflows" },
-            ].map((item) => (
-              <div key={item.text} className="flex items-center gap-3">
-                <span className="text-xl">{item.icon}</span>
-                <span style={{ color: "hsl(215 20% 75%)" }}>{item.text}</span>
-              </div>
-            ))}
-          </div>
+            <motion.div variants={stagger} className="grid grid-cols-2 gap-4">
+              {[
+                { icon: PackageSearch, title: "Asset Tracking" },
+                { icon: Map, title: "Intelligent Routing" },
+                { icon: Activity, title: "Live Analytics" },
+                { icon: ShieldCheck, title: "Compliance" },
+              ].map((f) => (
+                <motion.div key={f.title} variants={fadeUp} className="flex items-center gap-4 p-4 rounded-2xl glass-overlay border border-white/5 transition-all hover:bg-white/5">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5">
+                    <f.icon className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-sm font-semibold text-white tracking-wide">{f.title}</span>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
+
+          {/* Footer content removed per user request */}
         </div>
       </div>
 
-      {/* Right panel — login form */}
-      <div className="flex-1 flex items-center justify-center p-8"
-        style={{ background: "hsl(222 47% 8%)" }}>
-        <div className="w-full max-w-md">
+      {/* ─── RIGHT PANEL: Form ─── */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 relative overflow-hidden bg-background">
+        
+        {/* Subtle background glow for right side */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-[0.03] pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(var(--primary)), transparent 60%)" }} />
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }} 
+          animate={{ opacity: 1, scale: 1 }} 
+          transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+          className="w-full max-w-[420px] relative z-10"
+        >
           {/* Mobile logo */}
-          <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ background: "hsl(239 84% 67%)" }}>
-              <Truck className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold">TransitOps</span>
+          <div className="flex items-center gap-3 mb-12 lg:hidden">
+            <Logo />
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-1">Welcome back</h2>
-            <p style={{ color: "hsl(215 20% 55%)" }}>Sign in to your account to continue</p>
+          <div className="mb-10">
+            <h2 className="text-3xl font-bold tracking-tight mb-2 text-white">Sign In</h2>
+            <p className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
+              Secure access to your enterprise dashboard
+            </p>
           </div>
 
-          {/* Google OAuth */}
           <Button
             variant="outline"
-            className="w-full mb-6 h-11"
+            className="w-full h-12 text-sm font-semibold rounded-xl bg-card hover:bg-card/80 border-white/10 text-white transition-all hover:border-white/20 mb-8"
             onClick={handleGoogle}
             disabled={googleLoading}
           >
             {googleLoading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 mr-3 animate-spin" />
             ) : (
-              <Globe className="w-4 h-4 mr-2" />
+              <Globe className="w-4 h-4 mr-3 text-muted-foreground" />
             )}
-            Continue with Google
+            Continue with Single Sign-On
           </Button>
 
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t" style={{ borderColor: "hsl(var(--border))" }} />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-3" style={{ background: "hsl(222 47% 8%)", color: "hsl(215 20% 55%)" }}>
-                or continue with email
+          <div className="relative mb-8">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5" /></div>
+            <div className="relative flex justify-center">
+              <span className="px-4 text-xs font-medium uppercase tracking-widest bg-background" style={{ color: "hsl(var(--muted-foreground))" }}>
+                Corporate Login
               </span>
             </div>
           </div>
 
-          {/* Credentials form */}
-          <form onSubmit={handleCredentials} className="space-y-4">
+          <form onSubmit={handleCredentials} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                  style={{ color: "hsl(215 20% 55%)" }} />
+              <Label htmlFor="email" className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Work Email</Label>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors group-focus-within:text-white"
+                  style={{ color: "hsl(var(--muted-foreground))" }} />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@company.com"
-                  className="pl-10 h-11"
+                  placeholder="name@supplylink.com"
+                  className="pl-11 h-12 rounded-xl bg-card border-white/10 text-white placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:border-primary transition-all"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
@@ -159,15 +187,15 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                  style={{ color: "hsl(215 20% 55%)" }} />
+              <Label htmlFor="password" className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Password</Label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors group-focus-within:text-white"
+                  style={{ color: "hsl(var(--muted-foreground))" }} />
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••"
-                  className="pl-10 h-11"
+                  className="pl-11 h-12 rounded-xl bg-card border-white/10 text-white placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:border-primary transition-all"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
@@ -175,37 +203,49 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full h-12 text-sm font-bold rounded-xl mt-4 shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 hover:-translate-y-0.5"
+              disabled={loading}
+              style={{
+                background: loading ? undefined : "linear-gradient(135deg, hsl(var(--sl-orange)), hsl(var(--sl-peach)))",
+                color: "hsl(0 0% 10%)"
+              }}
+            >
               {loading ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Authenticating...</>
               ) : (
-                "Sign in"
+                "Access Dashboard"
               )}
             </Button>
           </form>
 
-          <div className="mt-6 p-4 rounded-lg" style={{ background: "hsl(239 84% 67% / 0.08)", border: "1px solid hsl(239 84% 67% / 0.2)" }}>
-            <p className="text-xs font-medium mb-2" style={{ color: "hsl(239 84% 80%)" }}>Demo Accounts</p>
-            <div className="space-y-1">
+          {/* Quick Access Demo */}
+          <div className="mt-12">
+            <p className="text-xs font-semibold tracking-widest uppercase mb-4 text-center" style={{ color: "hsl(var(--muted-foreground))" }}>
+              Demo Environments
+            </p>
+            <div className="grid grid-cols-2 gap-2">
               {[
-                { email: "admin@demo.com", role: "Admin" },
-                { email: "fleet@demo.com", role: "Fleet Manager" },
-                { email: "dispatch@demo.com", role: "Dispatcher" },
-                { email: "safety@demo.com", role: "Safety Officer" },
-                { email: "finance@demo.com", role: "Financial Analyst" },
+                { email: "admin@demo.com", label: "Admin" },
+                { email: "fleet@demo.com", label: "Fleet" },
+                { email: "dispatch@demo.com", label: "Dispatch" },
+                { email: "safety@demo.com", label: "Safety" },
               ].map((acc) => (
-                <div key={acc.email} className="flex justify-between text-xs"
-                  style={{ color: "hsl(215 20% 65%)" }}>
-                  <span>{acc.email}</span>
-                  <span style={{ color: "hsl(239 84% 75%)" }}>{acc.role}</span>
-                </div>
+                <button
+                  key={acc.email}
+                  type="button"
+                  className="flex flex-col items-start p-3 rounded-xl bg-card/50 border border-white/5 hover:bg-white/5 hover:border-white/10 transition-all text-left group"
+                  onClick={() => setForm({ email: acc.email, password: "demo1234" })}
+                >
+                  <span className="text-xs font-bold text-white group-hover:text-primary transition-colors">{acc.label}</span>
+                  <span className="text-[10px]" style={{ color: "hsl(var(--muted-foreground))" }}>{acc.email}</span>
+                </button>
               ))}
             </div>
-            <p className="text-xs mt-2" style={{ color: "hsl(215 20% 50%)" }}>
-              Password: <code className="text-xs" style={{ color: "hsl(239 84% 80%)" }}>demo1234</code>
-            </p>
           </div>
-        </div>
+
+        </motion.div>
       </div>
     </div>
   );

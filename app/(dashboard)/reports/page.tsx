@@ -1,56 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
-import { Download, TrendingUp, Fuel, DollarSign, BarChart3 } from "lucide-react";
+import { Download, Loader2, BarChart3, TrendingUp, TrendingDown, Target, Zap, ActivitySquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatNumber } from "@/lib/utils";
+import { motion } from "framer-motion";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, AreaChart, Area
+} from "recharts";
 
-interface VehicleAnalytics {
-  id: string;
-  name: string;
-  regNumber: string;
-  type: string;
-  status: string;
-  acquisitionCost: number;
-  totalDistance: number;
-  totalFuel: number;
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
+const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] } } };
+
+interface ReportData {
+  fleetUtilization: number;
   fuelEfficiency: number;
-  fuelCost: number;
-  maintenanceCost: number;
-  otherExpenses: number;
   totalCost: number;
-  totalRevenue: number;
+  revenue: number;
   roi: number;
-  tripsCompleted: number;
+  expensesByCategory: Array<{ name: string; value: number }>;
+  monthlyCosts: Array<{ month: string; fuel: number; maintenance: number; other: number }>;
 }
 
-interface AnalyticsData {
-  vehicles: VehicleAnalytics[];
-  monthlyTrips: Array<{ month: string; count: number; revenue: number }>;
-}
-
-const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#3b82f6", "#ec4899", "#14b8a6"];
-
-function StatCard({ icon: Icon, label, value, color }: {
-  icon: React.ElementType; label: string; value: string; color: string;
-}) {
+function StatCard({ label, value, trend, icon: Icon, prefix = "" }: { label: string; value: number; trend: number; icon: React.ElementType; prefix?: string }) {
+  const isPositive = trend >= 0;
   return (
-    <div className="rounded-xl p-4 border" style={{ background: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}>
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}20` }}>
-          <Icon className="w-5 h-5" style={{ color }} />
-        </div>
+    <div className="premium-card p-6 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
+      <div className="flex justify-between items-start relative z-10">
         <div>
-          <p className="text-xs" style={{ color: "hsl(215 20% 55%)" }}>{label}</p>
-          <p className="font-bold text-lg">{value}</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{label}</p>
+          <p className="text-3xl font-bold tracking-tight text-white mb-2">
+            {prefix}{formatNumber(value, prefix === "₹" ? 2 : 1)}
+          </p>
+          <div className={`flex items-center gap-1.5 text-xs font-semibold ${isPositive ? "text-status-available" : "text-status-retired"}`}>
+            {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+            {Math.abs(trend)}% vs last month
+          </div>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-primary" />
         </div>
       </div>
     </div>
@@ -58,7 +48,7 @@ function StatCard({ icon: Icon, label, value, color }: {
 }
 
 export default function ReportsPage() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,177 +58,111 @@ export default function ReportsPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const handleExport = (type: string) => {
-    window.location.href = `/api/reports/export?type=${type}`;
+  const handleExport = () => {
+    window.open("/api/reports/export", "_blank");
   };
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
-        </div>
-        <Skeleton className="h-64" />
+      <div className="flex-1 flex flex-col items-center justify-center p-12 min-h-[60vh]">
+        <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+        <span className="text-sm font-bold tracking-widest uppercase text-muted-foreground">Generating Reports...</span>
       </div>
     );
   }
 
-  if (!data) return <p className="text-center py-16" style={{ color: "hsl(215 20% 50%)" }}>Failed to load analytics</p>;
-
-  const totalRevenue = data.vehicles.reduce((s, v) => s + v.totalRevenue, 0);
-  const totalCost = data.vehicles.reduce((s, v) => s + v.totalCost, 0);
-  const totalDistance = data.vehicles.reduce((s, v) => s + v.totalDistance, 0);
-  const avgFuelEff = data.vehicles.filter((v) => v.fuelEfficiency > 0);
-  const avgEfficiency = avgFuelEff.length > 0
-    ? avgFuelEff.reduce((s, v) => s + v.fuelEfficiency, 0) / avgFuelEff.length
-    : 0;
-
-  const costBreakdown = data.vehicles.reduce(
-    (acc, v) => ({
-      fuel: acc.fuel + v.fuelCost,
-      maintenance: acc.maintenance + v.maintenanceCost,
-      other: acc.other + v.otherExpenses,
-    }),
-    { fuel: 0, maintenance: 0, other: 0 }
-  );
-
-  const pieData = [
-    { name: "Fuel", value: costBreakdown.fuel },
-    { name: "Maintenance", value: costBreakdown.maintenance },
-    { name: "Other", value: costBreakdown.other },
-  ].filter((d) => d.value > 0);
-
-  const tooltipStyle = {
-    background: "hsl(222 47% 11%)",
-    border: "1px solid hsl(222 47% 18%)",
-    borderRadius: "8px",
-    color: "hsl(213 31% 91%)",
-  };
+  if (!data) return null;
 
   return (
-    <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={DollarSign} label="Total Revenue" value={formatCurrency(totalRevenue)} color="#6366f1" />
-        <StatCard icon={DollarSign} label="Total Costs" value={formatCurrency(totalCost)} color="#f59e0b" />
-        <StatCard icon={TrendingUp} label="Total Distance" value={`${formatNumber(totalDistance, 0)} km`} color="#22c55e" />
-        <StatCard icon={Fuel} label="Avg Fuel Efficiency" value={`${formatNumber(avgEfficiency, 2)} km/L`} color="#3b82f6" />
-      </div>
+    <motion.div variants={container} initial="hidden" animate="show" className="p-6 lg:p-8 space-y-8">
+      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Executive Analytics</h2>
+          <p className="text-sm text-muted-foreground">
+            Financial overview, fleet performance, and operational ROI.
+          </p>
+        </div>
+        <Button 
+          onClick={handleExport}
+          className="h-11 px-6 rounded-xl shadow-lg shadow-white/5 transition-all hover:shadow-white/10 text-sm font-bold bg-white text-black hover:bg-white/90"
+        >
+          <Download className="w-5 h-5 mr-2" /> Export CSV Report
+        </Button>
+      </motion.div>
 
-      {/* Charts row */}
+      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <StatCard label="Fleet ROI" value={data.roi} trend={5.2} icon={Target} prefix="₹" />
+        <StatCard label="Total Operational Cost" value={data.totalCost} trend={-2.1} icon={ActivitySquare} prefix="₹" />
+        <StatCard label="Avg Fuel Efficiency" value={data.fuelEfficiency} trend={1.4} icon={Zap} />
+        <StatCard label="Fleet Utilization" value={data.fleetUtilization} trend={8.5} icon={BarChart3} />
+      </motion.div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly trips/revenue */}
-        <div className="lg:col-span-2 rounded-xl border p-5" style={{ background: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}>
-          <h3 className="text-sm font-semibold mb-4">Monthly Trip Activity</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.monthlyTrips}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 47% 18%)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(215 20% 55%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "hsl(215 20% 55%)" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="count" name="Trips" fill="#6366f1" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Cost breakdown pie */}
-        <div className="rounded-xl border p-5" style={{ background: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}>
-          <h3 className="text-sm font-semibold mb-4">Cost Breakdown</h3>
-          {pieData.length === 0 ? (
-            <div className="flex items-center justify-center h-48" style={{ color: "hsl(215 20% 50%)" }}>
-              <p className="text-sm">No cost data yet</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
-                  dataKey="value" nameKey="name" paddingAngle={3}>
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatCurrency(v)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {/* Fuel Efficiency chart */}
-      <div className="rounded-xl border p-5" style={{ background: "hsl(var(--card))", borderColor: "hsl(var(--border))" }}>
-        <h3 className="text-sm font-semibold mb-4">Fuel Efficiency by Vehicle (km/L)</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={data.vehicles.filter((v) => v.fuelEfficiency > 0)}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 47% 18%)" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v} km/L`} />
-            <Bar dataKey="fuelEfficiency" name="km/L" fill="#22c55e" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ROI table */}
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ background: "hsl(var(--card))" }}>
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" style={{ color: "hsl(239 84% 70%)" }} />
-            Vehicle ROI & Operational Cost Analysis
-          </h3>
-          <div className="flex gap-2">
-            {["trips", "vehicles", "fuel", "expenses"].map((type) => (
-              <Button key={type} size="sm" variant="outline" className="h-7 text-xs gap-1"
-                onClick={() => handleExport(type)}>
-                <Download className="w-3 h-3" />
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </Button>
-            ))}
+        <motion.div variants={item} className="lg:col-span-2 premium-card p-6">
+          <div className="mb-6 pb-4 border-b border-white/5">
+            <h3 className="font-bold text-[15px] tracking-wide text-white">Monthly Operational Costs</h3>
           </div>
-        </div>
-        <Table className="data-table">
-          <TableHeader>
-            <TableRow style={{ background: "hsl(var(--secondary))" }}>
-              <TableHead>Vehicle</TableHead>
-              <TableHead>Trips</TableHead>
-              <TableHead>Distance</TableHead>
-              <TableHead>Fuel Efficiency</TableHead>
-              <TableHead>Total Cost</TableHead>
-              <TableHead>Revenue</TableHead>
-              <TableHead>ROI</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.vehicles.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-10" style={{ color: "hsl(215 20% 50%)" }}>
-                  No vehicle data yet
-                </TableCell>
-              </TableRow>
-            ) : data.vehicles.map((v) => (
-              <TableRow key={v.id}>
-                <TableCell>
-                  <div className="font-medium text-sm">{v.name}</div>
-                  <div className="text-xs" style={{ color: "hsl(215 20% 55%)" }}>{v.regNumber}</div>
-                </TableCell>
-                <TableCell className="text-sm">{v.tripsCompleted}</TableCell>
-                <TableCell className="text-sm">{formatNumber(v.totalDistance, 0)} km</TableCell>
-                <TableCell className="text-sm">
-                  {v.fuelEfficiency > 0 ? `${v.fuelEfficiency} km/L` : "—"}
-                </TableCell>
-                <TableCell className="text-sm">{formatCurrency(v.totalCost)}</TableCell>
-                <TableCell className="text-sm">{formatCurrency(v.totalRevenue)}</TableCell>
-                <TableCell>
-                  <span className={`text-sm font-medium ${v.roi >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {v.roi > 0 ? "+" : ""}{v.roi}%
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          <div className="h-[350px] w-full">
+            {data.monthlyCosts.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.monthlyCosts} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorFuel" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--sl-teal))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--sl-teal))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorMaint" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--sl-orange))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--sl-orange))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val/1000}k`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} 
+                    itemStyle={{ color: 'hsl(var(--foreground))' }} 
+                    formatter={(val: number) => formatCurrency(val)} 
+                  />
+                  <Area type="monotone" dataKey="maintenance" stackId="1" stroke="hsl(var(--sl-orange))" fill="url(#colorMaint)" strokeWidth={3} />
+                  <Area type="monotone" dataKey="fuel" stackId="1" stroke="hsl(var(--sl-teal))" fill="url(#colorFuel)" strokeWidth={3} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-sm font-medium text-muted-foreground">Insufficient data for cost history</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        <motion.div variants={item} className="premium-card p-6">
+          <div className="mb-6 pb-4 border-b border-white/5">
+            <h3 className="font-bold text-[15px] tracking-wide text-white">Expense Distribution</h3>
+          </div>
+          <div className="h-[350px] w-full">
+            {data.expensesByCategory.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.expensesByCategory} layout="vertical" margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip 
+                    cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '12px' }} 
+                    formatter={(val: number) => formatCurrency(val)} 
+                  />
+                  <Bar dataKey="value" fill="hsl(var(--sl-peach))" radius={[0, 4, 4, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-sm font-medium text-muted-foreground">No expenses logged yet</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

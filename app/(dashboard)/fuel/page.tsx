@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { Plus, Fuel, Search } from "lucide-react";
+import { Plus, Search, Droplet, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,110 +10,27 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { fuelLogSchema, type FuelLogInput } from "@/lib/validations";
-import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { formatDate, formatCurrency, formatNumber } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { formatNumber, formatCurrency, formatDate } from "@/lib/utils";
+import { FuelForm } from "@/components/fuel/fuel-form";
+import { motion } from "framer-motion";
+
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
+const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] } } };
 
 interface FuelLog {
   id: string;
   liters: number;
-  costPerLiter: number;
-  totalCost: number;
-  odometer: number;
+  cost: number;
   date: string;
-  station?: string;
   vehicle: { name: string; regNumber: string };
   trip?: { source: string; destination: string } | null;
-}
-
-interface Vehicle {
-  id: string; name: string; regNumber: string;
-}
-
-function FuelForm({ onSuccess }: { onSuccess: () => void }) {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FuelLogInput>({
-    resolver: zodResolver(fuelLogSchema),
-  });
-  const liters = watch("liters");
-  const costPerLiter = watch("costPerLiter");
-
-  useEffect(() => {
-    fetch("/api/vehicles").then((r) => r.json()).then(setVehicles);
-  }, []);
-
-  const onSubmit = async (data: FuelLogInput) => {
-    const res = await fetch("/api/fuel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) { toast.success("Fuel log recorded"); onSuccess(); }
-    else { const e = await res.json(); toast.error(e.error ?? "Failed"); }
-  };
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label>Vehicle *</Label>
-        <Select onValueChange={(v) => setValue("vehicleId", v as string)}>
-          <SelectTrigger><SelectValue placeholder="Select vehicle..." /></SelectTrigger>
-          <SelectContent>
-            {vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{v.name} ({v.regNumber})</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {errors.vehicleId && <p className="text-xs text-destructive">{errors.vehicleId.message}</p>}
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label>Liters *</Label>
-          <Input type="number" step="0.1" {...register("liters", { valueAsNumber: true })} placeholder="45.5" />
-          {errors.liters && <p className="text-xs text-destructive">{errors.liters.message}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Cost per Liter (₹) *</Label>
-          <Input type="number" step="0.01" {...register("costPerLiter", { valueAsNumber: true })} placeholder="104.50" />
-          {errors.costPerLiter && <p className="text-xs text-destructive">{errors.costPerLiter.message}</p>}
-        </div>
-      </div>
-      {liters && costPerLiter && (
-        <div className="text-sm p-2 rounded-lg" style={{ background: "hsl(239 84% 67% / 0.1)", color: "hsl(239 84% 80%)" }}>
-          Total Cost: {formatCurrency(liters * costPerLiter)}
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label>Odometer (km) *</Label>
-          <Input type="number" {...register("odometer", { valueAsNumber: true })} placeholder="12500" />
-          {errors.odometer && <p className="text-xs text-destructive">{errors.odometer.message}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Date</Label>
-          <Input type="date" {...register("date")} />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label>Station/Location</Label>
-        <Input {...register("station")} placeholder="HP Petrol Station, Pune..." />
-      </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Recording...</> : "Record Fuel Log"}
-      </Button>
-    </form>
-  );
 }
 
 export default function FuelPage() {
   const [logs, setLogs] = useState<FuelLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const fetchLogs = async () => {
     const res = await fetch("/api/fuel");
@@ -129,74 +45,110 @@ export default function FuelPage() {
     l.vehicle.regNumber.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalCost = logs.reduce((sum, l) => sum + l.totalCost, 0);
-  const totalLiters = logs.reduce((sum, l) => sum + l.liters, 0);
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <motion.div variants={container} initial="hidden" animate="show" className="p-6 lg:p-8 space-y-8">
+      <motion.div variants={item} className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Fuel Logs</h2>
-          <p className="text-xs mt-0.5" style={{ color: "hsl(215 20% 55%)" }}>
-            {formatNumber(totalLiters, 1)} L total · {formatCurrency(totalCost)} spent
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Fuel Logs</h2>
+          <p className="text-sm text-muted-foreground">
+            Monitor fleet fuel consumption, track expenses, and identify inefficiencies.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Log Fuel
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap h-11 px-6 rounded-xl shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Plus className="w-5 h-5 mr-2" /> Log Fuel
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Record Fuel Log</DialogTitle></DialogHeader>
-            <FuelForm onSuccess={() => { setOpen(false); fetchLogs(); }} />
+          <DialogContent className="max-w-lg bg-card border-white/10 p-8 rounded-2xl shadow-2xl">
+            <DialogHeader className="mb-6"><DialogTitle className="text-2xl font-bold tracking-tight">Record Refueling</DialogTitle></DialogHeader>
+            <FuelForm onSuccess={() => { setCreateOpen(false); fetchLogs(); }} />
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(215 20% 55%)" }} />
-        <Input placeholder="Search by vehicle..." className="pl-9 h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <motion.div variants={item} className="relative max-w-md group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors group-focus-within:text-white text-muted-foreground" />
+        <Input 
+          placeholder="Search by vehicle name or registration..." 
+          className="pl-11 h-12 rounded-xl bg-card/50 border-white/10 text-white placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:border-primary transition-all"
+          value={search} onChange={(e) => setSearch(e.target.value)} 
+        />
+      </motion.div>
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
+      <motion.div variants={item} className="premium-card overflow-hidden">
         <Table className="data-table">
           <TableHeader>
-            <TableRow style={{ background: "hsl(var(--secondary))" }}>
-              <TableHead>Vehicle</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Liters</TableHead>
-              <TableHead>Cost/L</TableHead>
+            <TableRow className="border-white/5 hover:bg-transparent">
+              <TableHead className="w-[280px]">Vehicle</TableHead>
+              <TableHead>Linked Trip</TableHead>
+              <TableHead>Volume</TableHead>
               <TableHead>Total Cost</TableHead>
-              <TableHead>Odometer</TableHead>
-              <TableHead>Station</TableHead>
+              <TableHead className="text-right">Date Recorded</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-8" style={{ color: "hsl(215 20% 50%)" }}>Loading...</TableCell></TableRow>
+              <TableRow className="border-none hover:bg-transparent">
+                <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <span className="text-sm font-medium tracking-widest uppercase">Loading Logs...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-10">
-                  <Fuel className="w-8 h-8 mx-auto mb-2" style={{ color: "hsl(215 20% 40%)" }} />
-                  <p className="text-sm" style={{ color: "hsl(215 20% 50%)" }}>No fuel logs yet</p>
+              <TableRow className="border-none hover:bg-transparent">
+                <TableCell colSpan={5} className="text-center py-24">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-white/5 border border-white/10">
+                    <Droplet className="w-7 h-7 text-primary" />
+                  </div>
+                  <p className="text-base font-semibold text-white">No fuel logs found</p>
+                  <p className="text-sm mt-2 text-muted-foreground max-w-xs mx-auto">
+                    Start tracking your fleet's fuel consumption.
+                  </p>
                 </TableCell>
               </TableRow>
-            ) : filtered.map((l) => (
-              <TableRow key={l.id}>
-                <TableCell>
-                  <div className="font-medium text-sm">{l.vehicle.name}</div>
-                  <div className="text-xs" style={{ color: "hsl(215 20% 55%)" }}>{l.vehicle.regNumber}</div>
-                </TableCell>
-                <TableCell className="text-sm">{formatDate(l.date)}</TableCell>
-                <TableCell className="text-sm">{formatNumber(l.liters, 1)} L</TableCell>
-                <TableCell className="text-sm">₹{l.costPerLiter.toFixed(2)}</TableCell>
-                <TableCell className="text-sm font-medium">{formatCurrency(l.totalCost)}</TableCell>
-                <TableCell className="text-sm">{formatNumber(l.odometer, 0)} km</TableCell>
-                <TableCell className="text-sm">{l.station ?? "—"}</TableCell>
-              </TableRow>
-            ))}
+            ) : (
+              filtered.map((l) => (
+                <TableRow key={l.id} className="border-white/5 hover:bg-white/5 transition-colors">
+                  <TableCell>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                        <Droplet className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-white text-[15px] truncate">{l.vehicle.name}</p>
+                        <p className="text-xs font-medium tracking-wide text-muted-foreground mt-0.5">{l.vehicle.regNumber}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {l.trip ? (
+                      <div className="flex items-center gap-2 text-[13px] font-semibold text-white/90">
+                        <span className="truncate max-w-[100px] block">{l.trip.source}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate max-w-[100px] block">{l.trip.destination}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[13px] font-medium text-muted-foreground">General Maintenance</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-bold text-white/90">{formatNumber(l.liters, 2)} L</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-bold text-primary">{formatCurrency(l.cost)}</span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="text-[13px] font-medium tracking-wide text-muted-foreground">
+                      {formatDate(l.date)}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

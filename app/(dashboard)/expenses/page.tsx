@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Receipt, Search } from "lucide-react";
+import { Plus, Receipt, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,16 +11,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { expenseSchema, type ExpenseInput } from "@/lib/validations";
-import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { formatDate, formatCurrency } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { ExpenseForm } from "@/components/expenses/expense-form";
+import { motion } from "framer-motion";
+
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
+const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] } } };
 
 interface Expense {
   id: string;
@@ -29,87 +25,23 @@ interface Expense {
   description: string;
   date: string;
   vehicle: { name: string; regNumber: string };
-  trip?: { source: string; destination: string } | null;
 }
-
-interface Vehicle { id: string; name: string; regNumber: string; }
 
 const CATEGORIES = ["TOLL", "MAINTENANCE", "INSURANCE", "PARKING", "FINE", "OTHER"];
-
-function ExpenseForm({ onSuccess }: { onSuccess: () => void }) {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<ExpenseInput>({
-    resolver: zodResolver(expenseSchema),
-    defaultValues: { category: "OTHER" },
-  });
-
-  useEffect(() => {
-    fetch("/api/vehicles").then((r) => r.json()).then(setVehicles);
-  }, []);
-
-  const onSubmit = async (data: ExpenseInput) => {
-    const res = await fetch("/api/expenses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) { toast.success("Expense recorded"); onSuccess(); }
-    else { const e = await res.json(); toast.error(e.error ?? "Failed"); }
-  };
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label>Vehicle *</Label>
-        <Select onValueChange={(v) => setValue("vehicleId", v as string)}>
-          <SelectTrigger><SelectValue placeholder="Select vehicle..." /></SelectTrigger>
-          <SelectContent>
-            {vehicles.map((v) => <SelectItem key={v.id} value={v.id}>{v.name} ({v.regNumber})</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {errors.vehicleId && <p className="text-xs text-destructive">{errors.vehicleId.message}</p>}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label>Category *</Label>
-          <Select defaultValue="OTHER" onValueChange={(v) => setValue("category", v as ExpenseInput["category"])}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Amount (₹) *</Label>
-          <Input type="number" step="0.01" {...register("amount", { valueAsNumber: true })} placeholder="500" />
-          {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Description *</Label>
-        <Textarea {...register("description")} placeholder="NH-48 toll, Parking at warehouse..." rows={2} />
-        {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Date</Label>
-        <Input type="date" {...register("date")} />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Recording...</> : "Record Expense"}
-      </Button>
-    </form>
-  );
-}
+const categoryColors: Record<string, { color: string }> = {
+  TOLL:        { color: "var(--sl-teal)" },
+  MAINTENANCE: { color: "var(--sl-orange)" },
+  INSURANCE:   { color: "var(--sl-navy)" },
+  PARKING:     { color: "var(--status-available)" },
+  FINE:        { color: "var(--status-retired)" },
+  OTHER:       { color: "var(--muted-foreground)" },
+};
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const fetchExpenses = async () => {
     const res = await fetch("/api/expenses");
@@ -121,86 +53,113 @@ export default function ExpensesPage() {
 
   const filtered = expenses.filter((e) =>
     e.vehicle.name.toLowerCase().includes(search.toLowerCase()) ||
-    e.description.toLowerCase().includes(search.toLowerCase())
+    e.description.toLowerCase().includes(search.toLowerCase()) ||
+    e.category.toLowerCase().includes(search.toLowerCase())
   );
 
-  const total = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-  const categoryColors: Record<string, string> = {
-    TOLL: "hsl(217 91% 60%)",
-    MAINTENANCE: "hsl(38 92% 50%)",
-    INSURANCE: "hsl(271 91% 65%)",
-    PARKING: "hsl(142 71% 45%)",
-    FINE: "hsl(0 84% 60%)",
-    OTHER: "hsl(215 20% 55%)",
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <motion.div variants={container} initial="hidden" animate="show" className="p-6 lg:p-8 space-y-8">
+      <motion.div variants={item} className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Expenses</h2>
-          <p className="text-xs mt-0.5" style={{ color: "hsl(215 20% 55%)" }}>
-            {expenses.length} records · {formatCurrency(total)} total
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-2">Fleet Expenses</h2>
+          <p className="text-sm text-muted-foreground">
+            Track operational costs, tolls, and miscellaneous fleet expenditures.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Add Expense
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap h-11 px-6 rounded-xl shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Plus className="w-5 h-5 mr-2" /> Log Expense
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Record Expense</DialogTitle></DialogHeader>
-            <ExpenseForm onSuccess={() => { setOpen(false); fetchExpenses(); }} />
+          <DialogContent className="max-w-lg bg-card border-white/10 p-8 rounded-2xl shadow-2xl">
+            <DialogHeader className="mb-6"><DialogTitle className="text-2xl font-bold tracking-tight">Record Expense</DialogTitle></DialogHeader>
+            <ExpenseForm onSuccess={() => { setCreateOpen(false); fetchExpenses(); }} />
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(215 20% 55%)" }} />
-        <Input placeholder="Search expenses..." className="pl-9 h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <motion.div variants={item} className="relative max-w-md group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors group-focus-within:text-white text-muted-foreground" />
+        <Input 
+          placeholder="Search by description, vehicle, or category..." 
+          className="pl-11 h-12 rounded-xl bg-card/50 border-white/10 text-white placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:border-primary transition-all"
+          value={search} onChange={(e) => setSearch(e.target.value)} 
+        />
+      </motion.div>
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
+      <motion.div variants={item} className="premium-card overflow-hidden">
         <Table className="data-table">
           <TableHeader>
-            <TableRow style={{ background: "hsl(var(--secondary))" }}>
-              <TableHead>Vehicle</TableHead>
+            <TableRow className="border-white/5 hover:bg-transparent">
+              <TableHead className="w-[280px]">Vehicle</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Description</TableHead>
+              <TableHead className="w-[300px]">Description</TableHead>
               <TableHead>Amount</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Date</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8" style={{ color: "hsl(215 20% 50%)" }}>Loading...</TableCell></TableRow>
+              <TableRow className="border-none hover:bg-transparent">
+                <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <span className="text-sm font-medium tracking-widest uppercase">Loading Expenses...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-10">
-                  <Receipt className="w-8 h-8 mx-auto mb-2" style={{ color: "hsl(215 20% 40%)" }} />
-                  <p className="text-sm" style={{ color: "hsl(215 20% 50%)" }}>No expenses recorded</p>
+              <TableRow className="border-none hover:bg-transparent">
+                <TableCell colSpan={5} className="text-center py-24">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-white/5 border border-white/10">
+                    <Receipt className="w-7 h-7 text-primary" />
+                  </div>
+                  <p className="text-base font-semibold text-white">No expenses recorded</p>
+                  <p className="text-sm mt-2 text-muted-foreground max-w-xs mx-auto">
+                    Start tracking your miscellaneous fleet expenses.
+                  </p>
                 </TableCell>
               </TableRow>
-            ) : filtered.map((e) => (
-              <TableRow key={e.id}>
-                <TableCell>
-                  <div className="font-medium text-sm">{e.vehicle.name}</div>
-                  <div className="text-xs" style={{ color: "hsl(215 20% 55%)" }}>{e.vehicle.regNumber}</div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: `${categoryColors[e.category]}20`, color: categoryColors[e.category], border: `1px solid ${categoryColors[e.category]}40` }}>
-                    {e.category}
-                  </span>
-                </TableCell>
-                <TableCell className="text-sm max-w-48 truncate">{e.description}</TableCell>
-                <TableCell className="text-sm font-medium">{formatCurrency(e.amount)}</TableCell>
-                <TableCell className="text-sm">{formatDate(e.date)}</TableCell>
-              </TableRow>
-            ))}
+            ) : (
+              filtered.map((e) => {
+                const colorToken = categoryColors[e.category]?.color || "var(--muted-foreground)";
+                return (
+                  <TableRow key={e.id} className="border-white/5 hover:bg-white/5 transition-colors">
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-bold text-[15px] text-white">{e.vehicle.name}</span>
+                        <span className="text-xs font-medium tracking-wide text-muted-foreground">{e.vehicle.regNumber}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span 
+                        className="text-[11px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-md border"
+                        style={{ 
+                          background: `hsl(${colorToken} / 0.1)`, 
+                          color: `hsl(${colorToken})`,
+                          borderColor: `hsl(${colorToken} / 0.2)`
+                        }}
+                      >
+                        {e.category}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-[13px] text-white/90 line-clamp-2">{e.description}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-bold text-white text-[15px]">{formatCurrency(e.amount)}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="text-[13px] font-medium tracking-wide text-muted-foreground">
+                        {formatDate(e.date)}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
