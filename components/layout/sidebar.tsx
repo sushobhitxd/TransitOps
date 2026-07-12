@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -124,12 +125,17 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   )?.label ?? "Dashboard";
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-4 px-6 h-14 border-b page-header-gradient"
+    <header className="sticky top-0 z-20 flex items-center justify-between px-6 h-14 border-b page-header-gradient"
       style={{ borderColor: "hsl(var(--border))" }}>
-      <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
-        <Menu className="w-5 h-5" />
-      </Button>
-      <h1 className="text-sm font-semibold">{pageName}</h1>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+          <Menu className="w-5 h-5" />
+        </Button>
+        <h1 className="text-sm font-semibold">{pageName}</h1>
+      </div>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+      </div>
     </header>
   );
 }
